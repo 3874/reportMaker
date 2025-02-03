@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReportMaker</title>
+    <style>
+        /* DataTable 내 글씨 크기 줄이기 */
+        .dataTable {
+            font-size: 12px; /* 원하는 글씨 크기로 조정 */
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.5/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+</head>
+<body>
+
+    <div class="container">
+        <div class="row align-items-center mb-4 mt-4">
+            <div class="col-auto">
+                <a href="javascript:history.back()" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i>
+                </a>
+            </div>
+            <div class="col text-center">
+                <h4>Setting</h4>
+            </div>
+        </div>
+
+        <div class="card p-4" style="width: 400px; margin: 0 auto;">
+
+            <div>
+                <!-- OpenAI API 입력 필드 -->
+                <div class="form-group">
+                    <label for="openaiApiKey">OpenAI API Key:</label>
+                    <input type="text" class="form-control" id="openaiApiKey" placeholder="Enter OpenAI API Key">
+                </div>
+
+                <!-- SerpAPI 입력 필드 -->
+                <div class="form-group">
+                    <label for="serpApiKey">SerpAPI Key:</label>
+                    <input type="text" class="form-control" id="serpApiKey" placeholder="Enter SerpAPI Key">
+                </div>
+
+                <!-- n8n URL 입력 필드 -->
+                <div class="form-group">
+                    <label for="n8nUrl">n8n URL:</label>
+                    <input type="text" class="form-control" id="n8nUrl" placeholder="Enter n8n URL">
+                </div>
+
+                <!-- 프로그램 Port 입력 필드 -->
+                <div class="form-group">
+                    <label for="programPort">ReportMaker Port:</label>
+                    <input type="text" class="form-control" id="programPort" placeholder="Enter Program Port">
+                </div>
+            </div>
+
+            <div class="text-center mt-4">
+                <button class="btn btn-info" id="SaveBtn">Save</button>
+            </div>
+        </div>
+
+    </div>
+
+
+</body>
+<script>
+    $(document).ready(function() {
+
+        $.ajax({
+            url: '/getSettings',
+            type: 'GET',
+            success: function(response) {
+                if (response.success) {
+                    // 가져온 설정 값을 입력 필드에 설정
+                    $('#openaiApiKey').val(response.data.OPENAI_KEY);
+                    $('#serpApiKey').val(response.data.serpAPI);
+                    $('#n8nUrl').val(response.data.n8n_URL);
+                    $('#programPort').val(response.data.port);
+                } else {
+                    alert('Failed to load settings.');
+                }
+            },
+            error: function(error) {
+                alert('Error loading settings.');
+            }
+        });
+
+
+        $('#SaveBtn').click(function() {
+            // 입력된 값 수집
+            const openaiApiKey = $('#openaiApiKey').val();
+            const serpApiKey = $('#serpApiKey').val();
+            const n8nUrl = $('#n8nUrl').val();
+            const programPort = $('#programPort').val();
+
+            // 서버로 데이터 전송
+            $.ajax({
+                url: '/saveSettings', // 서버의 엔드포인트 URL
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    OPENAI_KEY: openaiApiKey,
+                    serpAPI: serpApiKey,
+                    n8n_URL: n8nUrl,
+                    port: programPort
+                }),
+                success: function(response) {
+                    alert('Settings saved successfully!');
+                },
+                error: function(error) {
+                    alert('Error saving settings.');
+                }
+            });
+        });
+    });
+</script>
+</html>

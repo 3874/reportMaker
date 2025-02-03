@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Main</title>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.5/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.5/js/jquery.dataTables.min.js"></script> <!-- DataTables JS 추가 -->
+    <script src="https://cdn.jsdelivr.net/npm/markdown-it/dist/markdown-it.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.0.10/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+    
+    <style>
+        body {
+            background-color: #f8f9fa; /* 배경색 변경 */
+            display: flex;
+            flex-direction: column;
+            height: 100vh; /* 전체 화면 높이 설정 */
+        }
+        h2.main {
+            margin-top: 20px; /* 로고와 검색창 간격 조정 */
+        }
+        #searchResults {
+            border: none; /* 테두리 제거 */
+            background-color: #f8f9fa; /* 배경색을 배경색과 동일하게 설정 */
+            border-radius: 5px; /* 모서리 둥글게 */
+            padding: 10px; /* 패딩 추가 */
+            width: 100%; /* 너비 100% */
+            height: calc(100vh - 100px); /* 뷰포트 높이에서 footer 높이를 뺀 값 */
+            overflow-y: auto; /* 세로 스크롤 추가 */
+            margin-bottom: 60px; /* footer 높이만큼 여백 추가 */
+        }
+        footer {
+            position: fixed; /* 하단 고정 */
+            bottom: 0; /* 하단에 위치 */
+            left: 0; /* 왼쪽에 위치 */
+            right: 0; /* 오른쪽에 위치 */
+            background-color: #f8f9fa; /* 배경색 변경 */
+            padding: 10px 0; /* 패딩 추가 */
+            text-align: center; /* 텍스트 가운데 정렬 */
+            height: 60px; /* footer 높이 지정 */
+        }
+        .input-group {
+            margin-bottom: 10px; /* 검색창과 결과 간격 조정 */
+        }
+        #searchQuery {
+            background-color: #f8f9fa; /* 배경색을 배경색과 동일하게 설정 */
+            width: 80%; /* 검색창 너비를 전체 화면의 80%로 조정 */
+        }
+        #chatList .nav-link {
+            color: #495057;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 180px; /* 사이드바 너비에 맞춤 */
+        }
+
+        #chatList .nav-link:hover {
+            background-color: rgba(0,0,0,0.05);
+        }
+
+        #chatList .nav-link.active {
+            background-color: rgba(0,0,0,0.1);
+            color: #000;
+        }
+
+        .transition-icon {
+            transition: transform 0.3s ease;
+        }
+
+        [aria-expanded="true"] .transition-icon {
+            transform: rotate(90deg);
+        }
+
+        #sidebar {
+        width: 200px;
+        background-color: #adb5bd;
+        height: 100vh;
+        position: fixed;
+        left: 0;
+        top: 0;
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between; /* 사이드바 내용과 작은 리스트 박스 간의 공간을 조정 */
+        }
+
+        /* 작은 리스트 박스 스타일 */
+        .small-list-box {
+            background-color: #f8f9fa;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            padding: 10px;
+            position: absolute; /* 사이드바 하단에 고정 */
+            bottom: 10px; /* 하단 여백 */
+            left: 10px; /* 왼쪽 여백 */
+            right: 10px; /* 오른쪽 여백 */
+            height: 200px;
+        }
+
+        /* 리스트 항목 스타일 */
+        .small-list-box h5 {
+            margin-bottom: 10px; /* 제목과 리스트 간의 간격 */
+        }
+
+        .small-list-box ul {
+            list-style-type: none; /* 기본 리스트 스타일 제거 */
+            padding: 0; /* 패딩 제거 */
+            margin: 0; /* 마진 제거 */
+        }
+
+        .small-list-box li {
+            margin: 5px 0; /* 리스트 항목 간의 간격 */
+        }
+
+        .nav-link {
+            text-decoration: none;
+            color: #495057;
+        }
+
+        .container {
+            padding-bottom: 60px; /* footer 높이만큼 패딩 추가 */
+        }
+
+        #resultsContent {
+            max-height: 100%;
+            overflow-y: auto;
+        }
+
+    </style>
+</head>
+<body>
+    
+    <!-- 사이드바 수정 -->
+    <div id="sidebar" style="width: 200px; background-color: #adb5bd; height: 100vh; position: fixed; left: 0; top: 0; padding: 10px;">
+        <h4>🖥️ FileFlicker</h4> <!-- 간격 조정 -->
+        <ul class="nav flex-column"  style="flex-grow: 1;">
+            <li class="nav-item">
+                <a href="#" class="nav-link" id="newChatBtn">New Company</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link d-flex justify-content-between align-items-center" 
+                   data-toggle="collapse" 
+                   href="#chatCollapse" 
+                   role="button" 
+                   aria-expanded="false" 
+                   aria-controls="chatCollapse">
+                    <span>Latest Records</span>
+                    <i class="fas fa-chevron-right transition-icon"></i>
+                </a>
+                <div class="collapse" id="chatCollapse">
+                    <div class="card card-body" style="background-color: transparent; border: none; padding: 0;">
+                        <div id="chatList" class="nav flex-column">
+                            <!-- 채팅 목록이 여기에 동적으로 추가됨 -->
+                        </div>
+                    </div>
+                </div>
+            </li>
+
+            <li class="nav-item">
+                <a href="#" class="nav-link" id="removeChatBtn">Remove</a>
+            </li>
+
+            <li class="nav-item">
+                <a href="#" class="nav-link" id="saveChatBtn">Save to DB</a>
+            </li>
+            <li>
+                <small><a href="#" id="gotofile" class="nav-link">File</a></small>
+            </li>
+            <li>
+                <small><a href="#" id="gotocompany" class="nav-link">Company</a></small>
+            </li>
+
+        <hr class="my-2" style="border-top: 1px solid #b7c0c5; margin-left: 0.5rem; margin-right: 0.5rem;">
+
+            <li class="nav-item">
+                <span class="nav-link d-flex justify-content-between align-items-center">
+                    <strong>Basic Info</strong>
+                </span>
+                <div class="card card-body" style="background-color: transparent; border: none; padding: 0;">
+                    <div id="infoList" class="nav flex-column" style="margin-left: 20px;">
+                        <small>
+                            <input id="company" type="text" style="margin: 5px 0;" placeholder="Company Name" />
+                        </small>
+                        <small>
+                            <input id="en_company" type="text" style="margin: 5px 0;" placeholder="English Company Name" />
+                        </small>
+                        <small>
+                            <input id="industry" type="text" style="margin: 5px 0;" placeholder="Industry" />
+                        </small>
+                        <small>
+                            <select id="countrySelect" style="margin: 5px 0;">
+                                <option value="KR">Korea (South)</option>
+                                <option value="US">United States</option>
+                                <option value="JP">Japan</option>
+                                <option value="CN">China</option>
+                                <option value="GB">United Kingdom</option>
+                                <option value="FR">France</option>
+                                <option value="DE">Germany</option>
+                                <option value="IT">Italy</option>
+                                <option value="ES">Spain</option>
+                                <option value="IN">India</option>
+                                <option value="BR">Brazil</option>
+                                <option value="RU">Russia</option>
+                                <option value="AU">Australia</option>
+                                <option value="CA">Canada</option>
+                                <!-- 필요에 따라 추가 국가 옵션을 여기에 추가할 수 있습니다 -->
+                            </select>
+                        </small>
+                    </div>
+                </div>
+            </li>
+
+        </ul>
+
+        <hr class="my-2" style="border-top: 1px solid #b7c0c5; margin-left: 0.5rem; margin-right: 0.5rem;">
+
+        <!-- 작은 리스트 박스 추가 -->
+        <div class="small-list-box" style="margin-top: 20px; background-color: #f8f9fa; border: 1px solid #ced4da; border-radius: 5px; padding: 10px;">
+            <h6>Files <small>(Max 5 files)</small></h6>
+            <ul id="smallList" class="list-unstyled">
+
+            </ul>
+        </div>
+    </div>
+
+    <!-- 메인 컨테이너에 margin-left 추가 -->
+    <div class="container d-flex flex-column align-items-center" style="margin-left: 220px;">
+
+        <div id="searchResults" class="mt-4">
+            <div id="resultsContent" style="border: none;"></div>
+        </div>
+    </div>
+
+    <!-- 푸터에 margin-left 추가 -->
+    <footer style="margin-left: 220px; background-color: #f8f9fa;">
+        <div class="d-flex justify-content-center">
+            <div class="input-group" style="width: 80%;">
+                <button id="fileUploadButton" class="btn btn-secondary" style="margin-right: 2px;">+</button>
+                <input type="file" id="fileUpload" class="form-control-file" style="display: none;">
+                <input type="text" id="searchQuery" class="form-control" placeholder="검색어를 입력하세요">
+                <div class="input-group-append">
+                    <button id="searchButton" class="btn btn-primary">검색</button>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+
+    <script>
+        $(document).ready(function() {
+
+
+            // URL에서 sessionId 파라미터 확인
+            const urlParams = new URLSearchParams(window.location.search);
+            const sessionId = urlParams.get('sessionId');
+            const YlemChatSession = 'ylem_chat_session';
+            const YlemURL = 'http://localhost:5678/webhook/aiwebsearch';
+
+    // Don't remove below
+    //        const YlemURL = 'http://ai.yleminvest.com:9891/webhook/ddac0b21-00f3-4ce2-8f13-e39d61a3146a';  
+            
+
+            if (sessionId) {
+                $('#company').text('Company Name');
+                $('#en_company').text('English Company Name'); 
+                $('#industry').text('Industry'); 
+                $('#country').text('Korea'); 
+                // localStorage에서 세션 데이터 가져오기
+                let chatSessions = localStorage.getItem(YlemChatSession);
+                if (chatSessions) {
+                    let sessions = JSON.parse(chatSessions);
+                    let currentSession = sessions.find(session => session.sessionId === sessionId);
+                    
+                    // 현재 세션의 채팅 내용이 있다면 화면에 표시
+                    if (currentSession && currentSession.chat) {
+                        $('#resultsContent').html(currentSession.chat);
+                    }
+                }
+            } else {
+                // localStorage에서 세션 확인
+                let chatSessions = localStorage.getItem(YlemChatSession);
+                console.log(chatSessions);
+                
+                let parsedSessions = chatSessions ? JSON.parse(chatSessions) : [];
+                if (!chatSessions || parsedSessions.length === 0) {
+                    // 세션 ID 생성 함수
+                    const now = new Date();
+                    const date = now.toISOString().split('T')[0].replace(/-/g, '');
+                    const time = now.toTimeString().split(' ')[0].replace(/:/g, '');
+                    const newSessionId = `ylem_${date}_${time}`;
+                    
+                    const newSession = [{
+                        sessionId: newSessionId,
+                        latest: now.toISOString(),
+                        chat: ""
+                    }];
+                    
+                    // localStorage에 저장
+                    localStorage.setItem(YlemChatSession, JSON.stringify(newSession));
+                    console.log('새로운 세션이 생성되었습니다:', newSessionId);
+                    
+                    // URL에 sessionId를 추가하고 페이지 리로드
+                    window.location.href = `${window.location.pathname}?sessionId=${newSessionId}`;
+                } else {
+                    // latest 값을 기준으로 정렬하여 가장 최신 세션 찾기
+                    const latestSession = parsedSessions.sort((a, b) => 
+                        new Date(b.latest) - new Date(a.latest)
+                    )[0];
+                    
+                    console.log('최신 세션을 찾았습니다:', latestSession);
+                    
+                    // URL에 최신 sessionId를 추가하고 페이지 리로드
+                    window.location.href = `${window.location.pathname}?sessionId=${latestSession.sessionId}`;
+                }
+            }
+
+            // 검색 버튼 클릭 시 검색 실행
+            $('#searchButton').click(function() {
+                const query = $('#searchQuery').val();
+                $('#resultsContent').append(`<div style="border: 1px solid #ccc; background-color: #f0f0f0; padding: 5px; margin: 5px 0;">${query}</div>`);
+                
+                // 사용자 입력 후 스크롤 다운
+                $('#searchResults').scrollTop($('#searchResults')[0].scrollHeight);
+                
+                // 로딩 스피너 추가
+                $('#resultsContent').append(`
+                    <div id="loadingSpinner" class="d-flex justify-content-center my-3">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="sr-only">Loading...</span>
+                        </div>
+                    </div>
+                `);
+                
+                // 로딩 스피너 추가 후 스크롤 다운
+                $('#searchResults').scrollTop($('#searchResults')[0].scrollHeight);
+                
+                $('#searchQuery').val('');
+                
+                // AJAX 요청
+                $.ajax({
+                    url: YlemURL,
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify([{
+                        sessionId: sessionId,  
+                        action: 'sendMessage',
+                        chatInput: query
+                    }]),
+                    success: function(response) {
+                        $('#loadingSpinner').remove();
+                        
+                        if (response) {
+                            console.log(response);
+                            return;
+                            
+                            $('#resultsContent').append(`<div style="margin-top: 10px;"></div><div>${html_code}</div>`);
+                            
+                            // 응답 추가 후 스크롤 다운
+                            $('#searchResults').scrollTop($('#searchResults')[0].scrollHeight);
+                            
+                            // 현재 세션 ID 가져오기
+                            const currentSessionId = urlParams.get('sessionId');
+                            
+                            // localStorage에서 세션 데이터 가져오기
+                            let sessions = JSON.parse(localStorage.getItem(YlemChatSession));
+                            
+                            // 현재 세션 찾기
+                            let currentSession = sessions.find(session => session.sessionId === currentSessionId);
+                            
+                            if (currentSession) {
+                                // 현재 채팅창의 전체 HTML 내용을 저장
+                                currentSession.chat = $('#resultsContent').html();
+                                
+                                // latest 시간 업데이트
+                                currentSession.latest = new Date().toISOString();
+                                
+                                // localStorage 업데이트
+                                localStorage.setItem(YlemChatSession, JSON.stringify(sessions));
+                            }
+                        } else {
+                            $('#resultsContent').append(`<div style="margin-top: 10px;"></div><div>응답이 없습니다.</div>`);
+                        }
+                    },
+                    error: function(xhr) {
+                        $('#loadingSpinner').remove();
+                        const errorMessage = xhr.responseJSON ? xhr.responseJSON.error : '알 수 없는 오류 발생';
+                        $('#resultsContent').append(`<div><strong>AI:</strong> ${errorMessage}</div>`);
+                        
+                        // 에러 메시지 추가 후 스크롤 다운
+                        $('#searchResults').scrollTop($('#searchResults')[0].scrollHeight);
+                    }
+                });
+            });
+
+            // 입력창에서 Enter 를 눌렀을 때 검색 실행
+            $('#searchQuery').keypress(function(event) {
+                if (event.key === 'Enter') {
+                    event.preventDefault(); // 기본 Enter 동작 방지
+                    $('#searchButton').click(); // 검색 버튼 클릭 이벤트 발생
+                }
+            });
+
+            // File 버튼 클릭 시 파일 리스트 가져오기
+            $('#gotofile').click(function(event) {
+                event.preventDefault(); // 기본 링크 동작 방지
+                window.location.href = '/gotofile'; // file.html로 이동
+            });
+
+            $('#gotocompany').click(function(event) {
+                event.preventDefault(); // 기본 링크 동작 방지
+                window.location.href = '/companylist'; // company.html로 이동
+            });
+
+            // 파일 업로드 버튼 클릭 시 숨겨진 input 클릭
+            $('#fileUploadButton').click(function(event) {
+                event.preventDefault();
+                $('#fileUpload').click();
+            });
+
+            $('#fileUpload').change(function() {
+                const files = this.files;
+                const urlParams = new URLSearchParams(window.location.search);
+                const sessionId = urlParams.get('sessionId'); // URL에서 sessionId 가져오기
+
+                if (files.length > 0) {
+                    const formData = new FormData();
+                    formData.append('file', files[0]); // 선택된 파일 추가
+                    formData.append('sessionId', sessionId); // sessionId 추가
+
+                    // 파일을 서버로 전송
+                    $.ajax({
+                        url: 'http://localhost:5678/webhook-test/pdfsummary', // 서버 URL
+                        method: 'POST',
+                        data: formData,
+                        processData: false, // jQuery가 데이터를 처리하지 않도록 설정
+                        contentType: false, // jQuery가 Content-Type을 설정하지 않도록 설정
+                        success: function(response) {
+                            alert('파일이 성공적으로 업로드되었습니다.');
+                            console.log('서버 응답:', response);
+                        },
+                        error: function(xhr, error, thrown) {
+                            const errorMessage = xhr.responseJSON ? xhr.responseJSON.error : '알 수 없는 오류 발생';
+                            alert('파일 업로드 중 오류가 발생했습니다: ' + errorMessage);
+                        }
+                    });
+                }
+                $(this).val(''); // 파일 입력 초기화
+            });
+
+            $('#pickBtn').click(function() {
+                const fileName = $('#modalFileName').text(); // 파일 이름 가져오기
+                const fileId = $('#fileID').text(); // 파일 ID 가져오기
+                const smallList = $('#smallList'); // 작은 리스트 박스 선택
+                const currentItems = smallList.children('li').length; // 현재 항목 수 확인
+
+                // 같은 fileId를 가진 파일이 이미 있는지 확인
+                const existingFile = smallList.find(`li[data-file-id="${fileId}"]`).length > 0;
+
+                if (existingFile) {
+                    alert('같은 파일은 이미 추가되어 있습니다.'); // 경고 메시지
+                } else if (currentItems < 5) { // 최대 5개 제한
+                    smallList.append(`<li data-file-id="${fileId}"><small>${fileName}</small></li>`); // 파일 이름 추가
+                    $('#fileDetailModal').modal('hide'); // 팝업 닫기
+                } else {
+                    alert('최대 5개 파일만 추가할 수 있습니다.'); // 경고 메시지
+                }
+            });
+
+            function limitText(text, limit) {
+                    if (text == null) return "...";
+                    if (Array.isArray(text)) {
+                        text = text.join(', ').trim();
+                    }
+                    if (typeof text !== "string") return "...";
+                
+                    return text.length > limit ? text.substring(0, limit) + '...' : text;
+                }
+            // 채팅 세션 목록 표시 함수
+            function displayChatSessions() {
+                const YlemChatSession = 'ylem_chat_session';
+                const chatSessions = localStorage.getItem(YlemChatSession);
+                
+                if (chatSessions) {
+                    const sessions = JSON.parse(chatSessions);
+                    const chatList = $('#chatList');
+                    chatList.empty();
+                    
+                    sessions.sort((a, b) => new Date(b.latest) - new Date(a.latest))
+                           .forEach(session => {
+                        const isActive = session.sessionId === urlParams.get('sessionId');
+                        chatList.append(`
+                            <div class="d-flex align-items-center justify-content-between">
+                                <a href="?sessionId=${session.sessionId}" 
+                                   class="nav-link ${isActive ? 'active' : ''}" 
+                                   style="padding-left: 2rem; font-size: 0.7rem; flex-grow: 1;"
+                                   title="${session.sessionId}">
+                                    ${session.sessionId.replace('ylem_', '')}
+                                </a>
+                                <div class="dropdown" style="margin-right: 10px;">
+                                    <button class="btn btn-sm btn-link" type="button" data-toggle="dropdown">
+                                        ⋮
+                                    </button>
+                                </div>
+                            </div>
+                        `);
+                    });
+
+                }
+            }
+
+            // 초기 세션 목록 표시
+            displayChatSessions();
+
+            // New Chat 버튼 클릭 이벤트 핸들러 추가
+            $('#newChatBtn').click(function(event) {
+                event.preventDefault();
+                
+                const now = new Date();
+                const date = now.toISOString().split('T')[0].replace(/-/g, '');
+                const time = now.toTimeString().split(' ')[0].replace(/:/g, '');
+                const newSessionId = `ylem_${date}_${time}`;
+                
+                let chatSessions = localStorage.getItem(YlemChatSession);
+                let sessions = chatSessions ? JSON.parse(chatSessions) : [];
+                
+                const newSession = {
+                    sessionId: newSessionId,
+                    latest: now.toISOString(),
+                    chat: ""
+                };
+                
+                // 새 세션을 배열에 추가
+                sessions.push(newSession);
+
+                // localStorage에 업데이트된 세션 저장
+                localStorage.setItem(YlemChatSession, JSON.stringify(sessions));
+                
+                // 새 세션으로 페이지 이동
+                window.location.href = `${window.location.pathname}?sessionId=${newSessionId}`;
+            });
+
+            $('#saveChatBtn').click(function(event) {
+                event.preventDefault();
+                
+                alert(1);
+            });
+
+            $('#removeChatBtn').click(function(event) {
+                event.preventDefault();
+                
+                const currentSessionId = urlParams.get('sessionId');
+                
+                if (currentSessionId && confirm('현재 채팅을 삭제하시겠습니까?')) {
+                    // localStorage에서 세션 데이터 가져오기
+                    let sessions = JSON.parse(localStorage.getItem(YlemChatSession));
+                    
+                    // 현재 sessionId를 제외한 나머지 세션들만 필터링
+                    sessions = sessions.filter(session => session.sessionId !== currentSessionId);
+                    
+                    // 업데이트된 세션 데이터 저장
+                    localStorage.setItem(YlemChatSession, JSON.stringify(sessions));
+                    
+                    // 홈페이지로 리다이렉트 (sessionId 파라미터 없이)
+                    window.location.href = window.location.pathname;
+                }
+            });
+
+            $('#countrySelect').change(function() {
+                const selectedCountry = $(this).val();
+                console.log('선택된 국가:', selectedCountry);
+                // 추가적인 동작을 여기에 추가할 수 있습니다
+            });
+        });
+    </script>
+</body>
+</html>

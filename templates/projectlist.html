@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReportMaker</title>
+    <style>
+        /* DataTable 내 글씨 크기 줄이기 */
+        .dataTable {
+            font-size: 12px; /* 원하는 글씨 크기로 조정 */
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.5/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.5/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+</head>
+<body>
+
+    <div class="container">
+        <div class="row align-items-center mb-4 mt-4">
+            <div class="col-auto">
+                <a href="/" class="btn btn-secondary">
+                    <i class="fas fa-cog"></i>  
+                </a>
+            </div>
+            <div class="col text-center">
+                <h4>Project List</h4>
+            </div>
+        </div>
+
+        <!-- Table -->
+        <div class="mt-4">
+            <table id="projectTable" class="display table table-striped table-bordered" style="width:100%">
+                <thead>
+                    <tr>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Data will be dynamically added here -->
+                </tbody>
+            </table>
+        </div>
+        <div class="my-4 text-center">
+            <a class="btn btn-warning" id="AddBtn">🆕 New Project</a>
+            <a href="/filelist" class="btn btn-dark">📁 Files</a>
+            <a href="/setting" class="btn btn-primary">⚙️ Settings</a>
+            
+            
+        </div>
+    </div>
+
+
+    <script>
+        let db;
+        let totalPages = 0; // totalPages 변수를 전역으로 선언
+        let pLength = 25;
+        let projectTable; // companyTable 변수를 전역으로 선언
+    
+        $(document).ready(function() {
+            projectTable = $('#projectTable').DataTable({
+                responsive: true,
+                lengthChange: false,
+                info: false,
+                scrollY: true,
+                paging: true,
+                order: [[0, 'asc']],
+                columns: [
+                { data: 'projectId', title: 'Project ID', visible: false },
+                { data: 'title', title: 'Title', render: function(data) { return limitText(decodeURIComponent(data), 30); } },
+                { data: 'summary', title: 'Summary', render: function(data) { return limitText(decodeURIComponent(data), 50); } },
+                { data: 'createAt', title: 'Created At', visible: false  },
+                { data: 'updateAt', title: 'Updated At', visible: false  }
+                ],
+                pageLength: pLength,
+                initComplete: function() {
+                    loadProjects(); 
+                },
+            });
+
+            function loadProjects() {
+            $.ajax({
+                url: '/projects',
+                method: 'GET',
+                success: function(response) {
+                    // DataTable에 데이터 추가
+                    projectTable.clear().rows.add(response.data).draw();
+                },
+                error: function(xhr) {
+                    alert('프로젝트를 불러오는 데 문제가 발생했습니다.');
+                }
+            });
+        }
+
+            $('#projectTable tbody').on('click', 'tr', function () {
+                const data = projectTable.row(this).data(); // companyTable에서 projectTable로 변경
+                if (data) {
+                    const projectId = data.projectId; // 선택한 행의 projectId 가져오기
+                    window.location.href = `/project-chat?projectId=${projectId}`; // 페이지 이동
+                }
+            });
+        
+            $('#AddBtn').click(function() {
+            const newProjectData = {
+                title: "", // 여기에 실제 프로젝트 제목을 입력하세요
+                summary: "", // 여기에 실제 프로젝트 요약을 입력하세요
+                contents: "", // 여기에 실제 프로젝트 내용을 입력하세요
+                related_files: [], // 관련 파일 목록
+                related_companies: [] // 관련 회사 목록
+            };
+
+            $.ajax({
+                url: '/newProject',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(newProjectData),
+                success: function(response) {
+                    // 성공적으로 값을 받으면 projectId를 URL에 추가하여 페이지 이동
+                    const projectId = response.data.projectId;
+                    window.location.href = `/project-chat?projectId=${projectId}`;
+                },
+                error: function(xhr) {
+                    // 실패 시 경고 메시지 표시
+                    alert('현재 서버에 문제가 있습니다. 프로젝트를 추가할 수 없습니다.');
+                }
+            });
+        });
+    
+        });
+    
+        function limitText(text, limit) {
+            if (text == null) return "...";
+            if (Array.isArray(text)) {
+                text = text.join(', ').trim();
+            }
+            if (typeof text !== "string") return "...";
+            return text.length > limit ? text.substring(0, limit) + '...' : text; 
+        }
+    
+    </script>
+</body>
+</html>
