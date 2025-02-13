@@ -12,3 +12,5 @@ ehthumbs.db
 setting/*.json
 db/
 drive/
+dist/
+build/
