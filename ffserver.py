@@ -82,6 +82,7 @@ def upload_file():
 
     try:
         file.save(file_path)
+        print(file_path)
         logging.info(f'File uploaded and saved: {file_path}')
     except Exception as e:
         logging.error(f'Error saving file: {str(e)}')
@@ -279,12 +280,14 @@ def get_files():
 @FFapp.route('/downloadFile/<fileId>', methods=['GET'])
 def download_file(fileId):
     File = Query()
+
     file_entry = fileTable.get(File.fileId == fileId)
+
     if not file_entry:
         return jsonify({'error': 'File not found.'}), 404
 
     file_name = file_entry['file_name']
-    
+    print(UPLOAD_FOLDER)
     return send_from_directory(UPLOAD_FOLDER, file_name)
 
 @FFapp.route('/newProject', methods=['POST'])
