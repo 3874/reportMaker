@@ -71,10 +71,9 @@ def upload_file():
     if file.filename == '':
         return jsonify({'error': 'No selected file.'}), 400
 
-    # 예시: 파일 확장자 제한 (필요 시 활성화)
-    # ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
-    # if '.' not in file.filename or file.filename.rsplit('.', 1)[1].lower() not in ALLOWED_EXTENSIONS:
-    #     return jsonify({'error': 'File type not allowed.'}), 400
+    ALLOWED_EXTENSIONS = {'doc', 'pdf', 'docx', 'xls', 'xlsx', 'txt'}
+    if '.' not in file.filename or file.filename.rsplit('.', 1)[1].lower() not in ALLOWED_EXTENSIONS:
+        return jsonify({'error': 'File type not allowed.'}), 400
 
     file_name = file.filename
     file.seek(0)
@@ -258,28 +257,16 @@ def search_file():
 
 @FFapp.route('/files', methods=['GET'])
 def get_files():
-    start = int(request.args.get('start', 0))
-    length = int(request.args.get('length', 10))
-    search_value = request.args.get('search[value]', '').lower()
-    
     files = fileTable.all()
-    if search_value:
-        files = [file for file in files if (
-            search_value in file['file_name'].lower() or
-            search_value in file.get('summary', '').lower() or
-            search_value in file.get('comments', '').lower() or 
-            any(search_value in tag.lower() for tag in file.get('tags', []))
-        )]
-    
+
     records_with_id = [{'fileId': file['fileId'], **file} for file in files]
     records_with_id.reverse()
-    paginated_files = records_with_id[start:start + length]
     
     response = {
         "draw": int(request.args.get('draw', 1)),
-        "recordsTotal": len(fileTable.all()),
-        "recordsFiltered": len(records_with_id),
-        "data": paginated_files
+        "recordsTotal": len(fileTable.all()), 
+        "recordsFiltered": len(files),
+        "data": records_with_id
     }
     return jsonify(response)
 
@@ -294,6 +281,38 @@ def download_file(fileId):
     file_name = file_entry['file_name']
     logging.debug(f"Downloading file from folder: {UPLOAD_FOLDER}")
     return send_from_directory(UPLOAD_FOLDER, file_name)
+
+@FFapp.route('/registMissingFiles', methods=['GET'])
+def regist_missing_files():
+    try:
+        upload_files = os.listdir(UPLOAD_FOLDER) 
+
+        db_file_names = {entry['file_name'] for entry in fileTable.all()} 
+        missing_files = [file for file in upload_files if file not in db_file_names]
+        for file_name in missing_files:
+            file_path = os.path.join(UPLOAD_FOLDER, file_name)
+
+            file_id = str(uuid.uuid4())
+            current_time = datetime.now().isoformat()
+            
+            new_entry = {
+                "fileId": file_id,
+                "file_name": file_name,
+                "location": file_path,
+                "tags": [],
+                "summary": "",
+                "comments": "",
+                "createdAt": current_time,
+                "updatedAt": current_time
+            }
+
+            fileTable.insert(new_entry)
+            logging.info(f'File registered: {file_name}')
+
+        return jsonify({'status': 'success', 'message': f'백업이 성공적으로 완료되었습니다. 등록된 파일 수: {len(missing_files)}'}), 200
+    except Exception as e:
+        logging.error(f'백업 중 오류 발생: {e}')
+        return jsonify({'status': 'fail', 'message': '백업 중 오류가 발생했습니다.'}), 500
 
 @FFapp.route('/newProject', methods=['POST'])
 def new_project():
@@ -417,29 +436,16 @@ def get_projects():
 
 @FFapp.route('/companies', methods=['GET'])
 def get_companies():
-    start = int(request.args.get('start', 0))
-    length = int(request.args.get('length', 10))
-    search_value = request.args.get('search[value]', '').lower()  # 수정된 부분
-    
     companies = companyTable.all()
-    if search_value:
-        companies = [company for company in companies if (
-            search_value in company['companyName'].lower() or
-            search_value in company['companyEnName'].lower() or
-            search_value in company.get('industry', '').lower() or
-            search_value in company.get('summary', '').lower() or
-            search_value in company.get('comment', '').lower()
-        )]
 
     records_with_id = [{'companyId': company['companyId'], **company} for company in companies]
     records_with_id.reverse()
-    paginated_companies = records_with_id[start:start + length]
     
     response = {
         "draw": int(request.args.get('draw', 1)),
         "recordsTotal": len(companyTable.all()),
         "recordsFiltered": len(companies),
-        "data": paginated_companies
+        "data": records_with_id
     }
     return jsonify(response)
 
@@ -505,6 +511,128 @@ def delete_company(companyId):
     
     companyTable.remove(doc_ids=[company_entry.doc_id])
     return jsonify({'success': True, 'message': 'Company deleted successfully!'}), 200
+
+@FFapp.route('/exportFiletoServer', methods=['POST'])
+def export_file_to_server():
+    data = request.get_json()
+
+    if data:
+        FF_SERVER = QR_config.get('FF_SERVER')
+        FF_ID = QR_config.get('FF_ID')
+        FF_PASSWORD = QR_config.get('FF_PASSWORD')
+        FF_API_KEY = QR_config.get('FF_API_KEY')
+
+    if not all([FF_SERVER, FF_ID, FF_PASSWORD, FF_API_KEY]):
+        return jsonify({'status': 'fail', 'message': 'Missing required fields'}), 400
+
+    fileId = data.get('fileId')
+
+    if not fileId:
+        return jsonify({'status': 'fail', 'message': 'Missing file ID'}), 400
+
+    File = Query()
+    file_entry = fileTable.get(File.fileId == fileId)
+
+    if not file_entry:
+        return jsonify({'error': '파일을 찾을 수 없습니다.'}), 404
+
+    file_path = file_entry.get('location') 
+    if not os.path.exists(file_path): 
+        return jsonify({'error': '파일이 존재하지 않습니다.'}), 404
+
+    try:
+        with open(file_path, 'rb') as f:
+            file_content = f.read() 
+
+        url = FF_SERVER + '/exportFiletoServer'
+        headers = {
+            'Authorization': f'Bearer {FF_API_KEY}' 
+        }
+        files = {
+            'file': (os.path.basename(file_path), file_content),  # 파일을 multipart/form-data로 전송
+        }
+        data = {
+            'id': FF_ID,
+            'pwd': FF_PASSWORD, 
+            'summary': file_entry.get('summary'),
+            'comments': file_entry.get('comments'),
+            'tags': file_entry.get('tags')
+        }
+
+        response = requests.post(url, files=files, data=data, headers=headers)
+        response.raise_for_status() 
+        
+        response_data = response.json() if response.headers.get('Content-Type') == 'application/json' else {}
+        
+        return jsonify({'status': 'success', 'message': response_data}), 200
+    except requests.exceptions.RequestException as e:
+        print(f'API 호출 중 오류 발생: {e}')
+        return jsonify({'status': 'fail', 'message': 'API 호출 중 오류가 발생했습니다.', 'error': str(e)}), 500
+    
+@FFapp.route('/exportCompanytoServer', methods=['POST'])
+def export_company_to_server():
+    data = request.get_json()
+    if data:
+        FF_SERVER = QR_config.get('FF_SERVER')
+        FF_ID = QR_config.get('FF_ID')
+        FF_PASSWORD = QR_config.get('FF_PASSWORD')
+        FF_API_KEY = QR_config.get('FF_API_KEY')
+
+    if not all([FF_SERVER, FF_ID, FF_PASSWORD, FF_API_KEY]):
+        return jsonify({'status': 'fail', 'message': 'Missing required fields'}), 400
+
+    url = FF_SERVER + '/exportCompanytoServer'
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {FF_API_KEY}' 
+    }
+    data['id'] = FF_ID
+    data['pwd'] = FF_PASSWORD
+
+    try:
+        response = requests.post(url, json=data, headers=headers)
+        print(response)
+        response.raise_for_status() 
+        
+        response_data = response.json() if response.headers.get('Content-Type') == 'application/json' else {}
+        
+        return jsonify({'status': 'success', 'message': response_data}), 200
+    except requests.exceptions.RequestException as e:
+        print(f'API 호출 중 오류 발생: {e}')
+        return jsonify({'status': 'fail', 'message': 'API 호출 중 오류가 발생했습니다.', 'error': str(e)}), 500
+
+@FFapp.route('/exportProjecttoServer', methods=['POST'])
+def export_project_to_server():
+    data = request.get_json()
+    if data:
+        FF_SERVER = QR_config.get('FF_SERVER')
+        FF_ID = QR_config.get('FF_ID')
+        FF_PASSWORD = QR_config.get('FF_PASSWORD')
+        FF_API_KEY = QR_config.get('FF_API_KEY')
+
+    if not all([FF_SERVER, FF_ID, FF_PASSWORD, FF_API_KEY]):
+        return jsonify({'status': 'fail', 'message': 'Missing required fields'}), 400
+
+    url = FF_SERVER + '/exportProjecttoServer'
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {FF_API_KEY}' 
+    }
+    data['id'] = FF_ID
+    data['pwd'] = FF_PASSWORD
+
+    try:
+        response = requests.post(url, json=data, headers=headers)
+        print(response)
+        response.raise_for_status() 
+        
+        response_data = response.json() if response.headers.get('Content-Type') == 'application/json' else {}
+        
+        return jsonify({'status': 'success', 'message': response_data}), 200
+    except requests.exceptions.RequestException as e:
+        print(f'API 호출 중 오류 발생: {e}')
+        return jsonify({'status': 'fail', 'message': 'API 호출 중 오류가 발생했습니다.', 'error': str(e)}), 500
+
 
 @FFapp.route('/saveSettings', methods=['POST'])
 def save_settings():
@@ -689,7 +817,7 @@ def google_search_api(query, num_results=10):
     return res.get('items', [])
 
 if __name__ == '__main__':
-    port = int(QR_config.get('port', 21213))
+    port = int(QR_config.get('port', 21217))
     url = f'http://localhost:{port}/'
     webbrowser.open(url)
     FFapp.run(host='0.0.0.0', port=port, debug=True)

@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ReportMaker</title>
     <style>
-        /* DataTable 내 글씨 크기 줄이기 */
+        
         .dataTable {
-            font-size: 12px; /* 원하는 글씨 크기로 조정 */
+            font-size: 12px;
         }
     </style>
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.5/css/jquery.dataTables.min.css">
@@ -47,7 +47,6 @@
             <a class="btn btn-danger" id="AddBtn">🆕 New Project</a>
             <a href="/filelist" class="btn btn-primary">📁 Files</a>
             <a href="/companylist" class="btn btn-warning">🏢 Companies</a>
-            <a class="btn btn-dark" id="BackupBtn">🔄 Backup</a>
         </div>
     </div>
 
@@ -96,19 +95,6 @@
                     const projectId = data.projectId; // 선택한 행의 projectId 가져오기
                     window.location.href = `/project-chat?projectId=${projectId}`; // 페이지 이동
                 }
-            });
-
-            $('#BackupBtn').click(function() {
-                $.ajax({
-                    url: '/backupData',
-                    method: 'POST',
-                    success: function(response) {
-                        alert('백업이 성공적으로 완료되었습니다.');
-                    },
-                    error: function(xhr) {
-                        alert('백업 중 오류가 발생했습니다.');
-                    }
-                });
             });
         
             $('#AddBtn').click(function() {

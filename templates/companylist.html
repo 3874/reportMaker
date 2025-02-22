@@ -51,7 +51,8 @@
     <div class="modal-dialog" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="modalCompanyTitle">Company Details</h5>
+                <h5 class="modal-title" id="modalCompanyTitle">Company Details</h5>&nbsp
+                <button id="deleteCompanyBtn" class="btn btn-danger btn-sm">Delete</button>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
@@ -60,25 +61,26 @@
                 <h6 hidden>ID:</h6>
                 <p id="companyID" hidden></p>
                 
+                
                 <h6>Company Name:</h6>
-                <input type="text" id="modalCompanyName" style="width: 100%;" />
-                
+                <input type="text" id="modalCompanyName" style="font-size: 12px; width: 100%;" />
+                <br><br>
                 <h6>Company English Name:</h6>
-                <input type="text" id="modalCompanyEnName" style="width: 100%;" />
-                
+                <input type="text" id="modalCompanyEnName" style="font-size: 12px; width: 100%;" />
+                <br><br>
                 <h6>Industry:</h6>
-                <input type="text" id="modalIndustry" style="width: 100%;" />
-                
+                <input type="text" id="modalIndustry" style="font-size: 12px; width: 100%;" />
+                <br><br>
                 <h6>Summary:</h6>
                 <textarea id="modalSummary" style="font-size: 12px; width: 100%; height: 100px;"></textarea>
-                <hr>
+                <br><br>
                 <h6>Comment:</h6>
                 <textarea id="modalComment" style="font-size: 12px; width: 100%; height: 50px;"></textarea>
             </div>
             <div class="modal-footer">
                 <button id="addCompanyBtn" class="btn btn-danger">Add</button>
-                <button id="updateCompanyBtn" class="btn btn-danger">Update</button>
-                <button id="deleteCompanyBtn" class="btn btn-primary">Delete</button>
+                <button id="updateCompanyBtn" class="btn btn-info">Update</button>
+                <button id="exportCompanyBtn" class="btn btn-warning">Export</button>
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
             </div>
         </div>
@@ -86,14 +88,13 @@
 </div>
 
 <script>
-    let pLength = 25;
-    let companyTable;
+    let pLength = 10;
 
     $(document).ready(function() {
-        companyTable = $('#companyTable').DataTable({
+        const companyTable = $('#companyTable').DataTable({
             responsive: true,
-            lengthChange: false,
-            info: false,
+            lengthChange: true,
+            info: true,
             scrollY: true,
             paging: true,
             order: [[0, 'asc']],
@@ -111,7 +112,6 @@
             ],
             pageLength: pLength,
             initComplete: function() {
-
             },
         });
     
@@ -119,6 +119,7 @@
             $("#addCompanyBtn").css("display", "none");
             $("#updateCompanyBtn").css("display", "block");
             $("#deleteCompanyBtn").css("display", "block");
+            $("#exportCompanyBtn").css("display", "block");
             $('#companyDetailModal').modal('show');
 
             const data = companyTable.row(this).data();
@@ -133,11 +134,37 @@
 
         $('#companyAdd_btn').click(function() {
             $("#addCompanyBtn").css("display", "block");
+            $("#exportCompanyBtn").css("display", "none");
             $("#updateCompanyBtn").css("display", "none");
             $("#deleteCompanyBtn").css("display", "none");
             $("#companyDetailModal").modal('show');
         });
         
+        $('#exportCompanyBtn').click(function() {
+            const ask = confirm('Do you want to export this to the FF server?');
+            if (!ask) return;
+
+            let data = {
+                companyName: $('#modalCompanyName').val(), 
+                companyEnName: $('#modalCompanyEnName').val(), 
+                industry: $('#modalIndustry').val(), 
+                summary: $('#modalSummary').val(),
+                comment: $('#modalComment').val()
+            };
+            $.ajax({
+                url: '/exportCompanytoServer',
+                method: 'POST',
+                contentType: 'application/json', 
+                data: JSON.stringify(data), 
+                success: function(response) {
+                    alert('Successful exporting.');
+                },
+                error: function(xhr) {
+                    alert('Exporting Error.');
+                }
+            });
+        });
+
         $('#updateCompanyBtn').click(async function() {
             const companyID = $('#companyID').text();
             const companyName = $('#modalCompanyName').val(); 
@@ -208,7 +235,7 @@
             }
         });
 
-        $('#companyDetailModal').on('click', '#deleteCompanyBtn', function() {
+        $('#deleteCompanyBtn').click(async function() {
             const companyID = $('#companyID').text();  
             if (confirm("정말로 이 파일을 삭제하시겠습니까?")) {
                 $.ajax({

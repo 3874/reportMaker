@@ -29,7 +29,8 @@
         </div>
 
         <div class="col-auto">
-            <button class="btn btn-primary" id="fileUploadBtn">Upload</button>
+            <button class="btn btn-secondary btn-sm" id="registMissingFilesBtn">Missing Files</button>
+            <button class="btn btn-primary btn-sm" id="fileUploadBtn">Upload</button>
             <input type="file" id="fileInput" accept=".pdf, .xls, .xlsx, .doc, .docx" style="display:none;">
         </div>
     </div>
@@ -51,7 +52,8 @@
     <div class="modal-dialog" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="modalFileName">File Details</h5>
+                <h5 class="modal-title" id="modalFileName">File Details</h5>&nbsp;
+                <button id="deleteFile_btn" class="btn btn-danger btn-sm">Delete</button>&nbsp;
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
@@ -62,7 +64,7 @@
                 <h6>Summary: &nbsp;<small><button id="AISummaryBtn" class="btn btn-sm btn-secondary">AI Summary</button></small></h6>
                 <textarea id="modalSummary" style="font-size: 12px; width: 100%; height: 100px;"></textarea>
                 <hr>
-                <h6>File Location: &nbsp;<small><button id="downloadFileBtn" class="btn btn-sm btn-danger">Download</button></small></h6>
+                <h6>File Location: &nbsp;<small><button id="downloadFileBtn" class="btn btn-sm btn-success">Download</button></small></h6>
                 <p>
                     <strong id="modalFileLocation"></strong>
                 </p>
@@ -75,7 +77,7 @@
             </div>
             <div class="modal-footer">
                 <button id="updateFile_btn" class="btn btn-info">Update</button>
-                <button id="deleteFile_btn" class="btn btn-primary">Delete</button>
+                <button id="exportFileBtn" class="btn btn-warning">Export</button>
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
             </div>
         </div>
@@ -88,24 +90,24 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/12.3.2/markdown-it.min.js"></script>
 
 <script>
-    let pLength = 25;
-    let fileTable;
+    let pLength = 10;
 
     $(document).ready(function() {
-        fileTable = $('#fileTable').DataTable({
+        const fileTable = $('#fileTable').DataTable({
             responsive: true,
-            lengthChange: false,
-            info: false,
+            lengthChange: true,
+            info: true,
             scrollY: true,
             paging: true,
             order: [[0, 'asc']],
             ajax: {
                 url: '/files',
-                dataSrc: 'data' // 'data' 필드에서 데이터를 가져옵니다.
+                dataSrc: 'data'
             },
             columns: [
-                { data: 'fileId', title: 'File ID', visible: false },  // 'fileId' 필드로 변경
-                { data: 'file_name', title: 'File Name', render: function(data) { return limitText(data, 30); } },
+                { data: 'fileId', title: 'ID', visible: false },
+                { data: 'file_name', title: 'Name', render: function(data) { return limitText(data, 30); } },
+                { data: 'summary', title: 'Summary', render: function(data) { return limitText(data, 50); } },
                 { data: 'tags', title: 'Tags', render: function(data) { 
                         if (Array.isArray(data)) {
                             return limitText(data.join(', '), 15); 
@@ -115,18 +117,50 @@
                         return "..."; 
                     } 
                 },
-                { data: 'summary', title: 'Summary', render: function(data) { return limitText(data, 50); } },
-                { data: 'comments', title: 'Comments', render: function(data) { return limitText(data, 50); } },  // 'comments' 필드 추가
             ],
             pageLength: pLength,
             initComplete: function() {
-
             },
         });
 
+        $('#exportFileBtn').click(function() {
+            const ask = confirm('Do you want to export this to the FF server?');
+            if (!ask) return;
+
+            let data = {
+                fileId: $('#fileID').text(), 
+            };
+
+            $.ajax({
+                url: '/exportFiletoServer',
+                method: 'POST',
+                contentType: 'application/json', 
+                data: JSON.stringify(data), 
+                success: function(response) {
+                    alert('Successful exporting.');
+                },
+                error: function(xhr) {
+                    alert('Exporting Error.');
+                }
+            });
+        });
+
+        $('#registMissingFilesBtn').click(function() {
+            $.ajax({
+                url: '/registMissingFiles',
+                method: 'GET',
+                success: function(response) {
+                    alert('Successful registration.');
+                },
+                error: function(xhr) {
+                    alert('Registration Error.');
+                }
+            });
+        });
+
         $('#AISummaryBtn').click(async function() {
-            const confirmAnalyze = confirm("Really do you want to summarize this file?");
-            if (!confirmAnalyze) return;
+            const prompts = prompt("Please input your prompt");
+            if (!prompts) return;
 
             const fileId = $('#fileID').text();
             const fileName = $('#modalFileName').text();
@@ -174,7 +208,7 @@
                             const end = Math.min(start + chunkSize, textLength);
                             const textChunk = textContent.substring(start, end);
 
-                            let aiprompt = 'Summarize this text: ';
+                            let aiprompt = 'Summarize this text in the primary language of the text: ';
                             let query = aiprompt + textChunk;
 
                             console.log('query:', query);
@@ -193,14 +227,15 @@
                             }
                         }
 
-                        let LastQuery = `The following text may have duplicating content. Please process the text to the make it easier to understand by summarizing the key points, simplifying complex sentences, removing unnecessary duplication and improving the logical flow and organizing paragraphs coherently in the primary language of the text. Here is the text: ${wholetext}`;
+                        let LastQuery = `${prompts}: ${wholetext}`;
                         let LastResponse = await $.ajax({
                                 url: '/AISearch',
                                 method: 'POST',
                                 contentType: 'application/json',
                                 data: JSON.stringify([{ chatInput: LastQuery }])
                             });
-                        $('#modalSummary').val(LastResponse);
+
+                        $('#modalSummary').val(LastResponse.reply);
 
                     } catch (error) {
                         console.error('PDF 처리 중 오류 발생:', error);
@@ -313,6 +348,10 @@
                         comments: comments
                     }),
                     success: function(response) {
+                        $('#modalSummary').val('');
+                        $('#modalTags').val('');
+                        $('#modalComment').val('');
+                        $('#modalFileLocation').text('');
                         $('#fileDetailModal').modal('hide');
                         fileTable.ajax.reload();
                         console.log('파일 정보가 성공적으로 저장되었습니다.');
@@ -362,6 +401,7 @@
             }
         });
     }
+
 </script>
 
 </body>

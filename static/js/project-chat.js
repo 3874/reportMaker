@@ -254,6 +254,27 @@ $(document).ready(function() {
         }
     });
 
+    $('#exportChatButton').click(function() {
+
+        let data = {
+            contents: $('#resultsContent').html(), 
+            summary: $('#summary').text(), 
+            title: $('#title').text(), 
+        };
+        $.ajax({
+            url: '/exportProjecttoServer',
+            method: 'POST',
+            contentType: 'application/json', 
+            data: JSON.stringify(data), 
+            success: function(response) {
+                alert('Successful exporting.');
+            },
+            error: function(xhr) {
+                alert('Exporting Error.');
+            }
+        });
+    });
+
     $('#FromPCButton').click(function() {
         $('#fileSelectModal').modal('hide');
         $('#fileInput').click();
@@ -356,7 +377,6 @@ $(document).ready(function() {
     
         $('#selectPromptModal').modal('show');
     });
-
 
     $('#filefindButton').click(function() {
         if (relatedFiles.length > MaxNoFiles) {
