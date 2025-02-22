@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ReportMaker</title>
+    <link href="https://unpkg.com/tailwindcss@1.9.6/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.5/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+      #loadingOverlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background-color: rgba(0, 0, 0, 0.5); /* 반투명 검정 배경 */
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          z-index: 9999; /* 다른 요소 위에 표시 */
+      }
+    </style>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.5/js/jquery.dataTables.min.js"></script> <!-- DataTables JS 추가 -->
+    <script src="https://cdn.jsdelivr.net/npm/markdown-it/dist/markdown-it.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.0.10/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/12.3.2/markdown-it.min.js"></script>
+    <script src="../static/js/project-chat.js"></script>
+
+    
+</head>
+<body class="h-screen overflow-hidden flex items-center justify-center" style="background: #edf2f7;">
+    <div class="flex h-screen antialiased text-gray-800 w-full">
+    <div class="flex flex-row h-full w-full overflow-x-hidden">
+      <div class="flex flex-col py-8 pl-3 pr-2 w-64 bg-white flex-shrink-0">
+        <div class="flex flex-row h-10 w-full" style="margin-top: -10px; margin-left: -15px;"> 
+          <div class="col-auto">
+            <a href="javascript:history.back()" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i>  
+            </a>
+        </div>
+        <div class="ml-2 font-bold text-2xl">ReportMaker</div>
+        </div>
+        <div class="flex flex-col items-center bg-indigo-100 border border-gray-200 mt-4 w-full py-6 px-4 rounded-lg" >
+
+          <div class="text-sm font-semibold mt-2" id="title"></div>
+          <div class="text-xs text-gray-500" id="summary"></div>
+          <div class="text-xs text-gray-500" id="projectId" hidden></div>
+          <div class="text-xs text-gray-500" id="createAt"></div>
+          <div class="text-xs text-gray-500" id="updateAt"></div>
+          <div class="text-xs text-gray-500" id="relatedcompany"></div>
+          <div class="flex space-x-2"> 
+            <button id="showPrompt" class="bg-yellow-500 text-white rounded p-1 text-sm mt-4">
+              <small>Prompts</small>
+            </button>
+            <button id="makeReport" class="bg-blue-500 text-white rounded p-1 text-sm mt-4">
+              <small>AI Report</small>
+            </button>
+          </div>
+        </div>
+        <div class="flex flex-col mt-8">
+          <div class="flex flex-row items-center justify-between text-xs">
+            <span class="font-bold">File Bank <small>(max 10)</small></span><button id="reloadDB" hidden>🔄</button>
+          </div>
+          <div class="flex flex-col space-y-1 -mx-2 h-48 overflow-y-auto" id="relatedfile">
+          </div>
+        </div>
+        <div class="mt-auto">
+          <button id="removeChatButton" class="bg-green-500 text-white rounded p-1 text-sm mt-2 w-full">
+            <small>Clear chat</small>
+        </button>
+          <button id="removeProjectButton" class="bg-red-500 text-white rounded p-1 text-sm mt-2 w-full">
+              <small>Remove Project</small>
+          </button>
+        </div>
+      </div>
+
+      <div class="flex flex-col flex-auto h-full p-6 w-full">
+        <div class="flex flex-col flex-auto flex-shrink-0 rounded-2xl bg-gray-100 h-full p-4 w-full">
+          <div class="text-center text-xl font-bold mb-4">
+            Chat
+          </div>
+          <div class="flex flex-col h-full overflow-x-auto mb-4 w-full">
+            <div class="flex flex-col h-full w-full">
+              <div class="grid grid-cols-12 gap-y-2" id="resultsContent">
+                
+              </div>
+            </div>
+          </div>
+          <div
+            class="flex flex-row items-center h-16 rounded-xl bg-white w-full px-4"
+          >
+            <div>
+              <input type="file" id="fileInput" accept=".pdf, .xls, .xlsx, .doc, .docx" style="display:none;">
+              <button
+                class="flex items-center justify-center text-gray-400 hover:text-gray-600"
+                id="filefindButton" 
+              >
+
+                <svg
+                  class="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+                  ></path>
+                </svg>
+              </button>
+            </div>
+            <div class="flex-grow ml-4">
+              <div class="relative w-full">
+                <input
+                  type="text"
+                  class="flex w-full border rounded-xl focus:outline-none focus:border-indigo-300 pl-4 h-10"
+                  id="searchQuery"
+                />
+                <button id="websearchBtn" class="absolute flex items-center justify-center h-full w-12 right-0 top-0 text-gray-400 hover:text-gray-600">
+                  <span id="websearchIcon">🌐</span>
+                </button>
+              </div>
+            </div>
+            <div class="ml-4">
+              <button class="flex items-center justify-center bg-indigo-500 hover:bg-indigo-600 rounded-xl text-white px-4 py-1 flex-shrink-0" id="searchButton">
+                <span>Send</span>
+                <span class="ml-2">
+                  <svg
+                    class="w-4 h-4 transform rotate-45 -mt-px"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+                    ></path>
+                  </svg>
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<!-- Modal -->
+<div class="modal fade" id="editPromptModal" tabindex="-1" role="dialog" aria-labelledby="editPromptModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+      <div class="modal-content">
+          <div class="modal-header">
+              <h5 class="modal-title" id="editPromptModalLabel">Prompt Editor</h5>
+              <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                  <span aria-hidden="true">&times;</span>
+              </button>
+          </div>
+          <div class="modal-body" id="promptEditContainer">
+              <!-- 프롬프트 편집 필드가 여기에 추가됩니다. -->
+          </div>
+          <hr>
+          <div class="modal-body">
+            <p>New prompt</p>
+            <div class="form-group">
+              <input type="text" id="newPromptKey" class="form-control" placeholder="New Title" style="width: 100px; font-size: small;">
+              <textarea id="newPromptValue" class="form-control" placeholder="New Prompt" style="width: 450px; height: 100px; font-size: small;"></textarea>
+              <button type="button" class="btn btn-sm btn-success" id="addPrompt"><small>Add</small></button>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <div class="form-group">
+              <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+              <button type="button" class="btn btn-primary" id="savePrompts">Save</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+  </div>
+</div>
+
+<div class="modal fade" id="fileSelectModal" tabindex="-1" role="dialog" aria-labelledby="fileSelectModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+      <div class="modal-content">
+          <div class="modal-header">
+              <h5 class="modal-title" id="fileSelectModalLabel">Upload File</h5>
+              <button id="FromPCButton" class="btn btn-sm btn-secondary"><small>From PC</small></button>
+          </div>
+          <div class="modal-body">
+            <div class="mt-4">
+              <table id="fileTable" class="display table table-striped table-bordered" style="width:100%">
+                  <thead>
+                    <tr>
+                    </tr>
+                  </thead>
+                  <tbody>
+                      <!-- Data will be dynamically added here -->
+                  </tbody>
+              </table>
+            </div>
+          </div>
+      </div>
+  </div>
+</div>
+
+<!-- 프롬프트 선택 모달 -->
+<div class="modal fade" id="selectPromptModal" tabindex="-1" role="dialog" aria-labelledby="selectPromptModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+      <div class="modal-content">
+          <div class="modal-header">
+              <h5 class="modal-title" id="selectPromptModalLabel">프롬프트 선택</h5>
+              <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                  <span aria-hidden="true">&times;</span>
+              </button>
+          </div>
+          <div class="modal-body" id="promptButtonContainer">
+              <!-- 버튼이 여기에 추가됩니다. -->
+          </div>
+      </div>
+  </div>
+</div>
+<div id="loadingOverlay" style="display: none;">
+  <div class="spinner-border text-primary" role="status">
+      <span class="sr-only">Loading...</span>
+  </div>
+</div>
+</body>
+</html>

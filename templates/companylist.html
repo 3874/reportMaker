@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Company Manager</title>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.5/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<style>
+    /* DataTable 내 글씨 크기 줄이기 */
+    .dataTable {
+        font-size: 12px; /* 원하는 글씨 크기로 조정 */
+    }
+</style>
+<body>
+
+<div class="container">
+    <div class="row align-items-center mb-4 mt-4">
+        <div class="col-auto">
+            <a href="javascript:history.back()" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i>  
+            </a>
+        </div>
+
+        <div class="col text-center">
+            <h4>Company Manager</h4>
+        </div>
+
+        <div class="col-auto">
+            <button class="btn btn-info" id="companyAdd_btn">Add</button>
+            <input type="file" id="fileInput" accept=".pdf, .xls, .xlsx, .doc, .docx" style="display:none;">
+        </div>
+    </div>
+
+    <div class="mt-4">
+        <table id="companyTable" class="display table table-striped table-bordered" style="width:100%">
+            <thead>
+
+            </thead>
+            <tbody>
+                <!-- Data will be dynamically added here -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal fade" id="companyDetailModal" tabindex="-1" role="dialog" aria-labelledby="companyDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalCompanyTitle">Company Details</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <h6 hidden>ID:</h6>
+                <p id="companyID" hidden></p>
+                
+                <h6>Company Name:</h6>
+                <input type="text" id="modalCompanyName" style="width: 100%;" />
+                
+                <h6>Company English Name:</h6>
+                <input type="text" id="modalCompanyEnName" style="width: 100%;" />
+                
+                <h6>Industry:</h6>
+                <input type="text" id="modalIndustry" style="width: 100%;" />
+                
+                <h6>Summary:</h6>
+                <textarea id="modalSummary" style="font-size: 12px; width: 100%; height: 100px;"></textarea>
+                <hr>
+                <h6>Comment:</h6>
+                <textarea id="modalComment" style="font-size: 12px; width: 100%; height: 50px;"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button id="addCompanyBtn" class="btn btn-danger">Add</button>
+                <button id="updateCompanyBtn" class="btn btn-danger">Update</button>
+                <button id="deleteCompanyBtn" class="btn btn-primary">Delete</button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let pLength = 25;
+    let companyTable;
+
+    $(document).ready(function() {
+        companyTable = $('#companyTable').DataTable({
+            responsive: true,
+            lengthChange: false,
+            info: false,
+            scrollY: true,
+            paging: true,
+            order: [[0, 'asc']],
+            ajax: {
+                url: '/companies',
+                dataSrc: 'data' // 'data' 필드에서 데이터를 가져옵니다.
+            },
+            columns: [
+                { data: 'companyId', title: 'ID', visible: false },  // 'companyID' 필드로 변경
+                { data: 'companyName', title: 'Name', render: function(data) { return limitText(data, 30); } },
+                { data: 'companyEnName', title: 'Eng. Name', render: function(data) { return limitText(data, 30); } },
+                { data: 'industry', title: 'Industry', render: function(data) { return limitText(data, 30); } },
+                { data: 'summary', title: 'Summary', render: function(data) { return limitText(data, 50); } },
+                { data: 'comment', title: 'Comment', render: function(data) { return limitText(data, 50); } },  // 'comments' 필드 추가
+            ],
+            pageLength: pLength,
+            initComplete: function() {
+
+            },
+        });
+    
+        $('#companyTable tbody').on('click', 'tr', function () {
+            $("#addCompanyBtn").css("display", "none");
+            $("#updateCompanyBtn").css("display", "block");
+            $("#deleteCompanyBtn").css("display", "block");
+            $('#companyDetailModal').modal('show');
+
+            const data = companyTable.row(this).data();
+            $('#modalCompanyTitle').text(data.companyName);
+            $('#companyID').text(data.companyId);
+            $('#modalCompanyName').val(data.companyName);
+            $('#modalCompanyEnName').val(data.companyEnName);
+            $('#modalIndustry').val(data.industry);
+            $('#modalSummary').val(data.summary);
+            $('#modalComment').val(data.comment); 
+        });
+
+        $('#companyAdd_btn').click(function() {
+            $("#addCompanyBtn").css("display", "block");
+            $("#updateCompanyBtn").css("display", "none");
+            $("#deleteCompanyBtn").css("display", "none");
+            $("#companyDetailModal").modal('show');
+        });
+        
+        $('#updateCompanyBtn').click(async function() {
+            const companyID = $('#companyID').text();
+            const companyName = $('#modalCompanyName').val(); 
+            const companyEnName = $('#modalCompanyEnName').val();
+            const industry = $('#modalIndustry').val(); 
+            const summary = $('#modalSummary').val(); 
+            const comment = $('#modalComment').val(); 
+
+            try {
+                const response = await $.ajax({
+                    url: `/updateCompany/${companyID}`, 
+                    type: 'PUT',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        companyName: companyName,
+                        companyEnName: companyEnName,
+                        industry: industry,
+                        summary: summary,
+                        comment: comment
+                    })
+                });
+
+                if (response.success) { 
+                    $("#companyDetailModal").modal('hide');
+                    companyTable.ajax.reload();
+                    alert('Company added successfully!'); 
+
+                } else {
+                    alert('Error adding company: ' + response.message); // 서버에서 반환된 오류 메시지 표시
+                }
+            } catch (error) {
+                alert('Error adding company.'); // AJAX 요청 오류 처리
+            }
+
+        });
+
+        $('#addCompanyBtn').click(async function() {
+            const companyName = $('#modalCompanyName').val(); 
+            const companyEnName = $('#modalCompanyEnName').val();
+            const industry = $('#modalIndustry').val(); 
+            const summary = $('#modalSummary').val(); 
+            const comment = $('#modalComment').val(); 
+
+            try {
+                const response = await $.ajax({
+                    url: '/addCompany', 
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        companyName: companyName,
+                        companyEnName: companyEnName,
+                        industry: industry,
+                        summary: summary,
+                        comment: comment
+                    })
+                });
+
+                if (response.success) { 
+                    $("#companyDetailModal").modal('hide');
+                    companyTable.ajax.reload();
+                    alert('Company added successfully!'); 
+
+                } else {
+                    alert('Error adding company: ' + response.message); // 서버에서 반환된 오류 메시지 표시
+                }
+            } catch (error) {
+                alert('Error adding company.'); // AJAX 요청 오류 처리
+            }
+        });
+
+        $('#companyDetailModal').on('click', '#deleteCompanyBtn', function() {
+            const companyID = $('#companyID').text();  
+            if (confirm("정말로 이 파일을 삭제하시겠습니까?")) {
+                $.ajax({
+                    url: `/deleteCompany/${companyID}`,
+                    method: 'DELETE',
+                    success: function(response) {
+                        alert('파일이 성공적으로 삭제되었습니다.');
+                        companyTable.ajax.reload(); // 테이블 새로 고침
+                        $('#companyDetailModal').modal('hide'); // 모달 닫기
+                    },
+                    error: function(xhr, error, thrown) {
+                        alert("파일 삭제 실패: " + (xhr.responseJSON ? xhr.responseJSON.error : thrown));
+                    }
+                });
+            }
+        });
+
+});
+    
+    function limitText(text, limit) {
+        if (text == null) return "..."; // null과 undefined 체크
+        if (Array.isArray(text)) {
+            text = text.join(', ').trim(); // 배열을 String으로 변환
+        }
+        if (typeof text !== "string") return "..."; // 문자열이 아닌 경우
+    
+        return text.length > limit ? text.substring(0, limit) + '...' : text; // 제한 출력
+    }
+    
+    async function downloadFile(companyID, fileName) {
+        $.ajax({
+            url: '/downloadFile/' + companyID,
+            method: 'GET',
+            xhrFields: {
+                responseType: 'blob' // 응답을 Blob으로 설정
+            },
+            success: function(data, status, xhr) {
+
+                var downloadUrl = window.URL.createObjectURL(data);
+                var a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = fileName; // 다운로드할 파일 이름
+                document.body.appendChild(a);
+                a.click(); // 자동 다운로드 트리거
+                document.body.removeChild(a); // 링크 요소 제거
+            },
+            error: function(xhr, status, error) {
+                alert('파일 다운로드 실패: ' + error);
+            }
+        });
+    }
+
+</script>
+
+<script src="https://cdn.datatables.net/1.13.5/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+
+</body>
+
+</html>

@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Manager</title>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.5/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+</head>
+<style>
+    /* DataTable 내 글씨 크기 줄이기 */
+    .dataTable {
+        font-size: 12px; /* 원하는 글씨 크기로 조정 */
+    }
+</style>
+<body>
+
+<div class="container">
+    <div class="row align-items-center mb-4 mt-4">
+        <div class="col-auto">
+            <a href="javascript:history.back()" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i>  
+            </a>
+        </div>
+
+        <div class="col text-center">
+            <h4>File Manager</h4>
+        </div>
+
+        <div class="col-auto">
+            <button class="btn btn-primary" id="fileUploadBtn">Upload</button>
+            <input type="file" id="fileInput" accept=".pdf, .xls, .xlsx, .doc, .docx" style="display:none;">
+        </div>
+    </div>
+
+    <div class="mt-4">
+        <table id="fileTable" class="display table table-striped table-bordered" style="width:100%">
+            <thead>
+
+            </thead>
+            <tbody>
+                <!-- Data will be dynamically added here -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal for File Details -->
+<div class="modal fade" id="fileDetailModal" tabindex="-1" role="dialog" aria-labelledby="fileDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalFileName">File Details</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <h6 hidden>ID:</h6>
+                <p id="fileID" hidden></p>
+                <h6>Summary: &nbsp;<small><button id="AISummaryBtn" class="btn btn-sm btn-secondary">AI Summary</button></small></h6>
+                <textarea id="modalSummary" style="font-size: 12px; width: 100%; height: 100px;"></textarea>
+                <hr>
+                <h6>File Location: &nbsp;<small><button id="downloadFileBtn" class="btn btn-sm btn-danger">Download</button></small></h6>
+                <p>
+                    <strong id="modalFileLocation"></strong>
+                </p>
+                <hr>
+                <h6>Tags:</h6>
+                <textarea id="modalTags" style="font-size: 12px; width: 100%; height: 50px;"></textarea>
+                <hr>
+                <h6>Comment:</h6>
+                <textarea id="modalComment" style="font-size: 12px; width: 100%; height: 50px;"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button id="updateFile_btn" class="btn btn-info">Update</button>
+                <button id="deleteFile_btn" class="btn btn-primary">Delete</button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.5/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/12.3.2/markdown-it.min.js"></script>
+
+<script>
+    let pLength = 25;
+    let fileTable;
+
+    $(document).ready(function() {
+        fileTable = $('#fileTable').DataTable({
+            responsive: true,
+            lengthChange: false,
+            info: false,
+            scrollY: true,
+            paging: true,
+            order: [[0, 'asc']],
+            ajax: {
+                url: '/files',
+                dataSrc: 'data' // 'data' 필드에서 데이터를 가져옵니다.
+            },
+            columns: [
+                { data: 'fileId', title: 'File ID', visible: false },  // 'fileId' 필드로 변경
+                { data: 'file_name', title: 'File Name', render: function(data) { return limitText(data, 30); } },
+                { data: 'tags', title: 'Tags', render: function(data) { 
+                        if (Array.isArray(data)) {
+                            return limitText(data.join(', '), 15); 
+                        } else if (typeof data === 'string') {
+                            return limitText(data.split(',').map(tag => tag.trim()), 15);
+                        }
+                        return "..."; 
+                    } 
+                },
+                { data: 'summary', title: 'Summary', render: function(data) { return limitText(data, 50); } },
+                { data: 'comments', title: 'Comments', render: function(data) { return limitText(data, 50); } },  // 'comments' 필드 추가
+            ],
+            pageLength: pLength,
+            initComplete: function() {
+
+            },
+        });
+
+        $('#AISummaryBtn').click(async function() {
+            const confirmAnalyze = confirm("Really do you want to summarize this file?");
+            if (!confirmAnalyze) return;
+
+            const fileId = $('#fileID').text();
+            const fileName = $('#modalFileName').text();
+        
+            try {
+                const response = await $.ajax({
+                    url: `/downloadFile/${fileId}`,
+                    method: 'GET',
+                    xhrFields: {
+                        responseType: 'blob'
+                    }
+                });
+
+                const file = new File([response], fileName);
+                const reader = new FileReader();
+                reader.onload = async function(event) {
+                    const typedarray = new Uint8Array(event.target.result);
+                    
+                    try {
+                        const pdf = await pdfjsLib.getDocument(typedarray).promise;
+                        let textContent = '';
+
+                        const numPages = pdf.numPages;
+                        const pagePromises = [];
+
+                        for (let i = 1; i <= numPages; i++) {
+                            pagePromises.push(pdf.getPage(i).then(async function(page) {
+                                const text = await page.getTextContent();
+                                text.items.forEach(function(item) {
+                                    textContent += item.str + ' ';
+                                });
+                            }));
+                        }
+
+                        await Promise.all(pagePromises);
+
+                        // 텍스트 길이 계산
+                        const textLength = textContent.length;
+                        const chunkSize = 100000; 
+                        const numChunks = Math.ceil(textLength / chunkSize);
+                        let wholetext = '';
+
+                        for (let i = 0; i < numChunks; i++) {
+                            const start = i * chunkSize;
+                            const end = Math.min(start + chunkSize, textLength);
+                            const textChunk = textContent.substring(start, end);
+
+                            let aiprompt = 'Summarize this text: ';
+                            let query = aiprompt + textChunk;
+
+                            console.log('query:', query);
+
+                            const aiResponse = await $.ajax({
+                                url: '/AISearch',
+                                method: 'POST',
+                                contentType: 'application/json',
+                                data: JSON.stringify([{ chatInput: query }])
+                            });
+
+                            if (aiResponse.reply) {
+                                wholetext += aiResponse.reply;
+                            } else {
+                                alert('No summary received from AI.');
+                            }
+                        }
+
+                        let LastQuery = `The following text may have duplicating content. Please process the text to the make it easier to understand by summarizing the key points, simplifying complex sentences, removing unnecessary duplication and improving the logical flow and organizing paragraphs coherently in the primary language of the text. Here is the text: ${wholetext}`;
+                        let LastResponse = await $.ajax({
+                                url: '/AISearch',
+                                method: 'POST',
+                                contentType: 'application/json',
+                                data: JSON.stringify([{ chatInput: LastQuery }])
+                            });
+                        $('#modalSummary').val(LastResponse);
+
+                    } catch (error) {
+                        console.error('PDF 처리 중 오류 발생:', error);
+                    }
+                };
+
+                reader.readAsArrayBuffer(file); // 파일을 ArrayBuffer로 읽기
+            } catch (error) {
+                console.error('파일 다운로드 중 오류 발생:', error);
+                alert('파일 다운로드 중 오류가 발생했습니다.');
+            }
+        });
+
+        $('#fileDetailModal').on('click', '[data-dismiss="modal"]', function() {
+            // 모달 내 모든 입력 박스 비우기
+            $('#modalSummary').val('');
+            $('#modalTags').val('');
+            $('#modalComment').val('');
+        });
+
+        $('#fileTable tbody').on('click', 'tr', function () {
+            const data = fileTable.row(this).data();
+            $('#modalFileName').text(data.file_name);
+            $('#fileID').text(data.fileId);
+            $('#modalTags').text(Array.isArray(data.tags) ? data.tags.join(', ') : data.tags);
+            $('#modalSummary').val(data.summary);
+
+            const locationText = data.location.length > 20 ? data.location.substring(0, 40) + '...' : data.location;
+            $('#modalFileLocation').attr('href', data.location).text(locationText);      
+
+            // 댓글 내용 설정
+            $('#modalComment').text(data.comments || ""); // 기존 댓글이 있으면 표시
+
+            $('#fileDetailModal').modal('show');
+        });
+
+        $('#fileUploadBtn').click(function() {
+            $('#fileInput').click(); 
+        });
+        
+        $('#downloadFileBtn').click(async function() {
+            const fileId = $('#fileID').text();
+            const fileName = $('#modalFileName').text();
+            await downloadFile(fileId, fileName);
+        });
+    
+        $('#fileInput').change(function() {
+            const files = this.files;
+            if (files.length > 0) {
+                if (files[0].size > 52428800) { 
+                    alert("File size exceeds 50MB. Please upload a smaller file.");
+                    return;
+                }
+                const formData = new FormData();
+                formData.append('file', files[0]);
+                $.ajax({
+                    url: `/uploadFile`, 
+                    method: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function(response) {
+                        alert('File uploaded successfully.');
+                        fileTable.ajax.reload(); 
+                    },
+                    error: function(xhr, error, thrown) {
+                        const errorMessage = xhr.responseJSON ? xhr.responseJSON.error : "An error occurred: " + thrown;
+                        alert("Error uploading file: " + errorMessage);
+                    }
+                });
+            }
+            $(this).val('');
+        });
+
+        $('#fileDetailModal').on('click', '#deleteFile_btn', function() {
+            const fileId = $('#fileID').text();  // 'fileId' 필드로 변경
+            if (confirm("정말로 이 파일을 삭제하시겠습니까?")) {
+                $.ajax({
+                    url: `/removeFile/${fileId}`,
+                    method: 'DELETE',
+                    success: function(response) {
+                        alert('파일이 성공적으로 삭제되었습니다.');
+                        fileTable.ajax.reload(); 
+                        $('#modalSummary').val('');
+                        $('#modalTags').val('');
+                        $('#modalComment').val('');
+                        $('#fileDetailModal').modal('hide'); 
+                    },
+                    error: function(xhr, error, thrown) {
+                        alert("파일 삭제 실패: " + (xhr.responseJSON ? xhr.responseJSON.error : thrown));
+                    }
+                });
+            }
+        });
+
+        $('#updateFile_btn').click(async function() {   
+            const fileId = $('#fileID').text();
+            const summary = $('#modalSummary').val(); 
+            const tags = $('#modalTags').val(); 
+            const comments = $('#modalComment').val(); 
+
+            try {
+                await $.ajax({
+                    url: `/updateFile/${fileId}`,
+                    method: 'PUT',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        summary: summary,
+                        tags: tags,
+                        comments: comments
+                    }),
+                    success: function(response) {
+                        $('#fileDetailModal').modal('hide');
+                        fileTable.ajax.reload();
+                        console.log('파일 정보가 성공적으로 저장되었습니다.');
+                    },
+                    error: function(xhr) {
+                        const errorMessage = xhr.responseJSON ? xhr.responseJSON.error : '알 수 없는 오류 발생';
+                        alert(`Error: ${errorMessage}`);
+                    }
+                });
+            } catch (error) {
+                console.error('서버에 저장 중 오류 발생:', error);
+            }
+        });
+
+});
+    
+    function limitText(text, limit) {
+        if (text == null) return "..."; // null과 undefined 체크
+        if (Array.isArray(text)) {
+            text = text.join(', ').trim(); // 배열을 String으로 변환
+        }
+        if (typeof text !== "string") return "..."; // 문자열이 아닌 경우
+    
+        return text.length > limit ? text.substring(0, limit) + '...' : text; // 제한 출력
+    }
+    
+    async function downloadFile(fileId, fileName) {
+        $.ajax({
+            url: '/downloadFile/' + fileId,
+            method: 'GET',
+            xhrFields: {
+                responseType: 'blob' // 응답을 Blob으로 설정
+            },
+            success: function(data, status, xhr) {
+
+                var downloadUrl = window.URL.createObjectURL(data);
+                var a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = fileName; // 다운로드할 파일 이름
+                document.body.appendChild(a);
+                a.click(); // 자동 다운로드 트리거
+                document.body.removeChild(a); // 링크 요소 제거
+                resolve();
+            },
+            error: function(xhr, status, error) {
+                alert('파일 다운로드 실패: ' + error);
+            }
+        });
+    }
+</script>
+
+</body>
+
+</html>
