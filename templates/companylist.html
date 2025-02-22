@@ -108,7 +108,6 @@
                 { data: 'companyEnName', title: 'Eng. Name', render: function(data) { return limitText(data, 30); } },
                 { data: 'industry', title: 'Industry', render: function(data) { return limitText(data, 30); } },
                 { data: 'summary', title: 'Summary', render: function(data) { return limitText(data, 50); } },
-                { data: 'comment', title: 'Comment', render: function(data) { return limitText(data, 50); } },  // 'comments' 필드 추가
             ],
             pageLength: pLength,
             initComplete: function() {
@@ -133,6 +132,12 @@
         });
 
         $('#companyAdd_btn').click(function() {
+            $('#modalCompanyTitle').text(''), 
+            $('#modalCompanyName').val(''), 
+            $('#modalCompanyEnName').val(''), 
+            $('#modalIndustry').val(''), 
+            $('#modalSummary').val(''),
+            $('#modalComment').val('');
             $("#addCompanyBtn").css("display", "block");
             $("#exportCompanyBtn").css("display", "none");
             $("#updateCompanyBtn").css("display", "none");

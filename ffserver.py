@@ -264,7 +264,7 @@ def get_files():
     
     response = {
         "draw": int(request.args.get('draw', 1)),
-        "recordsTotal": len(fileTable.all()), 
+        "recordsTotal": len(fileTable.all()),
         "recordsFiltered": len(files),
         "data": records_with_id
     }
@@ -549,7 +549,7 @@ def export_file_to_server():
             'Authorization': f'Bearer {FF_API_KEY}' 
         }
         files = {
-            'file': (os.path.basename(file_path), file_content),  # 파일을 multipart/form-data로 전송
+            'file': (os.path.basename(file_path), file_content), 
         }
         data = {
             'id': FF_ID,
