@@ -1,11 +1,10 @@
-import logging, os, sys, json, requests, uuid
+import logging, os, sys, json, requests, uuid, webbrowser, urllib.parse
 import googleapiclient.discovery
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from tinydb import TinyDB, Query
 from flask_cors import CORS
 from datetime import datetime
 from bs4 import BeautifulSoup
-import urllib.parse  # 구글 검색 쿼리 인코딩용
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
@@ -690,5 +689,8 @@ def google_search_api(query, num_results=10):
     return res.get('items', [])
 
 if __name__ == '__main__':
-    port = int(QR_config.get('port', 5000))
+    port = int(QR_config.get('port', 21213))
+    url = f'http://localhost:{port}/'
+    webbrowser.open(url)
     FFapp.run(host='0.0.0.0', port=port, debug=True)
+
